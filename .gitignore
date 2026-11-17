@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Test ve araç çıktıları
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+
+# Yerel veritabanları (kişisel sürüş verisi, repoya girmemeli)
+data/*.db
+data/*.db-journal
+
+# IDE ve işletim sistemi
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
