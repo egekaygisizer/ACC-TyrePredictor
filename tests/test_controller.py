@@ -107,3 +107,36 @@ def test_track_change_starts_new_session(tmp_path):
     step(provider, controller, make_sample(psi=24.0, in_pit=True, track="monza"))
     state = step(provider, controller, make_sample(psi=25.0, in_pit=True, track="spa"))
     assert state.cold_pressures.fl == 25.0 and state.session_laps == []
+
+
+def test_custom_target_hot_pressure_shifts_recommendation(tmp_path):
+    """Kullanıcının başlangıçta girdiği özel hedef sıcak basınç öneriyi doğrudan kaydırmalı."""
+    p1 = FakeProvider()
+    c1 = SessionController(p1, DatabaseManager(db_path=tmp_path / "t1.db"), MLPressurePredictor(target_hot_pressure=26.5))
+    s1 = step(p1, c1, make_sample(psi=24.0, in_pit=True, track="monza"))
+
+    p2 = FakeProvider()
+    c2 = SessionController(p2, DatabaseManager(db_path=tmp_path / "t2.db"), MLPressurePredictor(target_hot_pressure=27.0))
+    s2 = step(p2, c2, make_sample(psi=24.0, in_pit=True, track="monza"))
+
+    assert s1.target_hot_pressure == 26.5
+    assert s2.target_hot_pressure == 27.0
+    assert round(s2.recommended.fl - s1.recommended.fl, 1) == 0.5
+
+
+def test_prompt_target_pressure_inputs(monkeypatch):
+    """Başlangıç hedef basınç sorusunun Enter, virgül ve hatalı girişleri doğru işlediğini test eder."""
+    from main import prompt_target_pressure
+
+    # Boş Enter -> varsayılan 26.8
+    monkeypatch.setattr("builtins.input", lambda _: "")
+    assert prompt_target_pressure() == 26.8
+
+    # Virgüllü giriş -> 26.6
+    monkeypatch.setattr("builtins.input", lambda _: "26,6")
+    assert prompt_target_pressure() == 26.6
+
+    # Önce hatalı, sonra geçerli giriş
+    inputs = iter(["abc", "99.0", "27.1"])
+    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
+    assert prompt_target_pressure() == 27.1

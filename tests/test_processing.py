@@ -113,3 +113,37 @@ def test_lap_detector_lifecycle():
     assert detector.just_entered_pit is True
     # Sıcak lastiklerle pite girildiğinde orijinal soğuk basınçlar ezilmemeli!
     assert detector.cold_pressures == cold
+
+
+def test_lap_detector_ignores_zero_pressure_in_garage_menu():
+    """ACC garaj menüsünde 0.0 PSI gelirken soğuk basıncın 0 olarak kilitlenmediğini doğrular."""
+    detector = LapDetector()
+
+    # Menüde 0.0 PSI geliyor
+    menu_sample = TelemetrySample(
+        packet_id=1, speed_kmh=0.0, gear=0, rpms=0, steer_angle=0.0,
+        gas=0.0, brake=0.0, acc_lateral_g=0.0, acc_longitudinal_g=0.0,
+        pressures=WheelSet(0.0, 0.0, 0.0, 0.0), temperatures=WheelSet(0, 0, 0, 0),
+        wheel_slip=WheelSet(0, 0, 0, 0), track_name="paul_ricard", car_model="mclaren_720s_gt3_evo",
+        ambient_temp=30.0, track_temp=38.0, is_in_pit=True, completed_laps=0, current_lap_time_ms=0,
+    )
+    detector.process_sample(menu_sample)
+    assert detector.cold_pressures is None
+    assert detector.stint_active is False
+
+    # Drive'a basılıp piste çıkıldığında gerçek soğuk basınç kilitlenmeli
+    drive_sample = TelemetrySample(
+        packet_id=2, speed_kmh=60.0, gear=1, rpms=3000, steer_angle=0.0,
+        gas=0.3, brake=0.0, acc_lateral_g=0.0, acc_longitudinal_g=0.1,
+        pressures=WheelSet(24.5, 24.4, 24.6, 24.5), temperatures=WheelSet(70, 70, 70, 70),
+        wheel_slip=WheelSet(0, 0, 0, 0), track_name="paul_ricard", car_model="mclaren_720s_gt3_evo",
+        ambient_temp=30.0, track_temp=38.0, is_in_pit=False, completed_laps=0, current_lap_time_ms=1000,
+    )
+    detector.process_sample(drive_sample)
+    assert detector.stint_active is True
+    assert detector.cold_pressures == WheelSet(24.5, 24.4, 24.6, 24.5)
+
+    # ESC -> Return to Garage (0.0 PSI) geldiğinde stint sıfırlanmalı
+    detector.process_sample(menu_sample)
+    assert detector.stint_active is False
+    assert detector.cold_pressures is None

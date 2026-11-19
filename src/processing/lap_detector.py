@@ -29,6 +29,11 @@ class LapDetector:
         self.current_lap_samples.clear()
 
     @staticmethod
+    def _has_valid_pressures(pressures: WheelSet) -> bool:
+        """ACC garaj menüsünde araç henüz yere inmemişken 0.0 PSI döner; bunu filtreler."""
+        return min(pressures.fl, pressures.fr, pressures.rl, pressures.rr) > 1.0
+
+    @staticmethod
     def _tyres_changed(prev: Optional[WheelSet], curr: WheelSet) -> bool:
         """Bir önceki kareye göre herhangi bir lastikte ani basınç sıçraması var mı?"""
         if prev is None:
@@ -38,9 +43,17 @@ class LapDetector:
 
     def process_sample(self, sample: TelemetrySample) -> Optional[LapSummary]:
         """Her kareyi işler; yeni bir tur tamamlandıysa LapSummary, aksi halde None döner."""
+        self.just_entered_pit = False
+
+        # Araç garaj/setup menüsündeyken ACC 0.0 PSI gönderir: bu kareyi soğuk basınç sanma
+        if not self._has_valid_pressures(sample.pressures):
+            if self.stint_active:
+                self.reset_stint()
+            self._prev_pressures = None
+            return None
+
         prev_pressures = self._prev_pressures
         self._prev_pressures = sample.pressures
-        self.just_entered_pit = False
 
         # 1. Garaj / Pit
         if sample.is_in_pit:

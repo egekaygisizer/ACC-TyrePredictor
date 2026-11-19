@@ -8,7 +8,6 @@ from rich.table import Table
 from rich.text import Text
 
 from src.app.session import ConnectionStatus, SessionState
-from src.core.config import MAX_OPTIMAL_PRESSURE, MIN_OPTIMAL_PRESSURE, TARGET_HOT_PRESSURE_GT3
 
 WHEELS = (("fl", "Ön Sol (FL)"), ("fr", "Ön Sağ (FR)"), ("rl", "Arka Sol (RL)"), ("rr", "Arka Sağ (RR)"))
 STATUS_STYLE = {
@@ -19,11 +18,11 @@ STATUS_STYLE = {
 }
 
 
-def _pressure_style(psi: float) -> str:
-    """İdeal sıcak aralıkta yeşil, altında mavi, üstünde kırmızı."""
-    if psi < MIN_OPTIMAL_PRESSURE:
+def _pressure_style(psi: float, target: float) -> str:
+    """Kullanıcının hedef sıcak basıncına göre (-0.3 / +0.2 PSI) yeşil, altında mavi, üstünde kırmızı."""
+    if psi < round(target - 0.3, 2):
         return "blue"
-    return "green" if psi <= MAX_OPTIMAL_PRESSURE else "red"
+    return "green" if psi <= round(target + 0.2, 2) else "red"
 
 
 def _fmt_lap_time(ms: int) -> str:
@@ -46,12 +45,15 @@ class ConsoleView:
         text = Text()
         text.append("Durum: ", style="bold")
         text.append(s.status.value, style=f"bold {STATUS_STYLE[s.status]}")
+        text.append(f"    Hedef Sıcak Basınç: {s.target_hot_pressure:.1f} PSI", style="bold green")
         if s.track_name:
             text.append(f"\nPist: {s.track_name}    Araç: {s.car_model}")
             text.append(f"\nHava: {s.ambient_temp:.1f} °C    Pist: {s.track_temp:.1f} °C")
             text.append(f"\nTahmin modeli: {s.model_name}")
-            text.append(f"\nBu pistte kayıtlı temiz tur: {s.valid_track_laps}/{s.laps_needed_for_ml} "
-                        "(ML için gerekli)")
+            text.append(
+                f"\nBu pistte kayıtlı temiz tur: {s.valid_track_laps}/{s.laps_needed_for_ml} "
+                f"(ML için gerekli | toplam kayıt: {s.total_track_laps})"
+            )
         for warning in s.warnings:
             text.append(f"\n! {warning}", style="yellow")
         return Panel(text, title="ACC Lastik Basıncı Asistanı", border_style="blue")
@@ -77,7 +79,7 @@ class ConsoleView:
             cold = getattr(s.cold_pressures, key) if s.cold_pressures else None
             table.add_row(
                 label,
-                Text(f"{now:.2f}", style=_pressure_style(now)),
+                Text(f"{now:.2f}", style=_pressure_style(now, s.target_hot_pressure)),
                 f"{temp:.0f}",
                 f"{cold:.2f}" if cold is not None else "-",
                 f"{now - cold:+.2f}" if cold is not None else "-",
@@ -85,7 +87,7 @@ class ConsoleView:
         return Panel(table, title="Lastikler")
 
     def _recommendation(self, s: SessionState) -> Panel:
-        title = f"Garajda girilecek SOĞUK basınç (hedef sıcak: {TARGET_HOT_PRESSURE_GT3} PSI)"
+        title = f"Garajda girilecek SOĞUK basınç (hedef sıcak: {s.target_hot_pressure:.1f} PSI)"
         if s.recommended is None:
             return Panel("Öneri için oyun verisi bekleniyor...", title=title, border_style="green")
         table = Table(expand=True)

@@ -34,7 +34,10 @@ class SessionController:
         self.db = db
         self.predictor = predictor
         self.detector = detector or LapDetector()
-        self.state = SessionState(laps_needed_for_ml=predictor.min_laps_to_train)
+        self.state = SessionState(
+            laps_needed_for_ml=predictor.min_laps_to_train,
+            target_hot_pressure=predictor.target_hot_pressure,
+        )
         self._connected = False
         self._session_key = None          # (pist, araç): değişirse yeni seans başlar
         self._stint_was_locked = False
@@ -134,6 +137,7 @@ class SessionController:
         df = self.db.to_dataframe(track_name)
         was_trained = self.predictor.is_trained
         self.predictor.train_from_dataframe(df)
+        self.state.total_track_laps = len(df)
         self.state.valid_track_laps = self.predictor.valid_lap_count(df)
         self._rec_key = None  # Öneriyi yeniden hesaplat
         if announce and self.predictor.is_trained and not was_trained:

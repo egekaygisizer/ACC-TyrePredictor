@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Deque, List, Optional
 
+from src.core.config import TARGET_HOT_PRESSURE_GT3
 from src.core.models import LapSummary, TelemetrySample, WheelSet
 
 
@@ -22,6 +23,7 @@ class ConnectionStatus(Enum):
 @dataclass
 class SessionState:
     laps_needed_for_ml: int
+    target_hot_pressure: float = TARGET_HOT_PRESSURE_GT3
     status: ConnectionStatus = ConnectionStatus.WAITING_FOR_GAME
     sample: Optional[TelemetrySample] = None
     track_name: str = ""
@@ -33,6 +35,7 @@ class SessionState:
     recommended: Optional[WheelSet] = None      # Bir sonraki stint için önerilen soğuk basınç
     model_name: str = "-"
     valid_track_laps: int = 0                   # Bu pistte eğitime uygun temiz tur sayısı
+    total_track_laps: int = 0                   # Bu pistte veritabanına kayıtlı toplam tur sayısı
     session_laps: List[LapSummary] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
     events: Deque[str] = field(default_factory=lambda: deque(maxlen=8))
